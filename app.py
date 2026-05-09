@@ -1,39 +1,56 @@
-# ══════════════════════════════════════════════════════
 #  TechnoGrowth · Flask Backend (app.py)
 #  Matches the front-end design by Lyka Jane Hidalgo
-#
-#  HOW TO RUN:
-#    1. pip install flask
-#    2. python app.py
-#    3. Open browser: http://127.0.0.1:5000
 # ══════════════════════════════════════════════════════
 
 from flask import Flask, render_template, jsonify
-import random
+import json
+import os
 from datetime import datetime
 
 app = Flask(__name__)
 
+# --- HELPER FUNCTION TO READ REAL DATA ---
+def get_latest_sensor_data():
+    """Reads the JSON file created by the hardware script."""
+    try:
+        # Assumes sensor_data.json is in the same folder as app.py
+        with open("sensor_data.json", "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        # Fallback if the hardware script hasn't created the file yet
+        return {
+            "temp": 0.0, "hum": 0.0, "moisture": 0.0,
+            "n": 0, "p": 0, "k": 0, "timestamp": "Waiting..."
+        }
+
 # ──────────────────────────────────────────
-#  MOCK SENSOR FUNCTIONS
-#  Replace these with real sensor reads later
+#  REAL SENSOR FUNCTIONS
 # ──────────────────────────────────────────
 
 def read_temperature():
-    # LATER: Use Adafruit_DHT to read from DHT22
-    return round(29 + random.uniform(-1.5, 1.5), 1)
+    data = get_latest_sensor_data()
+    return data.get("temp", 0.0)
 
 def read_humidity():
-    # LATER: Use Adafruit_DHT to read from DHT22
-    return round(55 + random.uniform(-5, 8), 1)
+    data = get_latest_sensor_data()
+    return data.get("hum", 0.0)
 
 def read_soil_moisture():
-    # LATER: Read from capacitive moisture sensor via ADC
-    return round(42 + random.uniform(-3, 3), 1)
+    data = get_latest_sensor_data()
+    return data.get("moisture", 0.0)
 
 def read_npk():
-    # LATER: Read from NPK sensor via RS485 serial
-    return {"nitrogen": 45, "phosphorus": 32, "potassium": 28, "status": "NORMAL"}
+    data = get_latest_sensor_data()
+    return {
+        "nitrogen": data.get("n", 0),
+        "phosphorus": data.get("p", 0),
+        "potassium": data.get("k", 0),
+        "status": "NORMAL"
+    }
+
+# ──────────────────────────────────────────
+#  MOCK DATA (KEEPING FOR UI DESIGN)
+# ──────────────────────────────────────────
 
 def get_growth_data():
     return {
@@ -58,12 +75,8 @@ def get_device_status():
 
 def get_alerts():
     return [
-        {"type": "warning", "title": "Soil Moisture Low",          "desc": "Soil moisture has dropped to 42%. Consider irrigation.", "time": "2 hours ago"},
         {"type": "info",    "title": "Growth Milestone",           "desc": "Your Chinese cabbage has reached 12 leaves!",             "time": "5 hours ago"},
-        {"type": "warning", "title": "Temperature Rising",         "desc": "Temperature increased to 29°C. Monitor closely.",         "time": "1 day ago"},
-        {"type": "info",    "title": "Auto Irrigation Completed",  "desc": "Irrigation pump ran for 2 hours as scheduled.",           "time": "2 hours ago"},
         {"type": "success", "title": "Optimal Conditions Achieved","desc": "All environmental parameters are within ideal ranges.",    "time": "1 day ago"},
-        {"type": "info",    "title": "Humidity Suggestion",        "desc": "Consider increasing humidity slightly for optimal growth.","time": "2 days ago"},
     ]
 
 # ──────────────────────────────────────────
@@ -76,8 +89,10 @@ def dashboard():
 
 @app.route('/api/sensors')
 def api_sensors():
+    # We use the timestamp from the hardware file to know exactly when sensors were last read
+    data = get_latest_sensor_data()
     return jsonify({
-        "timestamp":     datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "timestamp":     data.get("timestamp", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
         "temperature":   read_temperature(),
         "humidity":      read_humidity(),
         "soil_moisture": read_soil_moisture(),
